@@ -4,8 +4,7 @@
 
 import logging
 import multiprocessing
-from typing import Union
-from operator import itemgetter
+from typing import Union, Optional
 
 import click
 
@@ -62,10 +61,38 @@ debug_option = click.option('--debug', is_flag=True)
 # sorted level names, by log-level
 _level_names = sorted(logging._nameToLevel, key=logging._nameToLevel.get)
 
-def log_level_option(default: Union[str, int] = logging.INFO):
-    """Create a click option to select a log-level by name."""
-    # normalize default to be a string
+
+def _log_level_option(default: logging._Level = logging.INFO, **kwargs):
     if isinstance(default, int):
         default = logging.getLevelName(level=default)
+    return click.option("-ll", "--log-level", type=click.Choice(choices=_level_names, case_sensitive=False), default=default, **kwargs)
 
-    return click.option("-ll", "--log-level", type=click.Choice(choices=_level_names, case_sensitive=False), default=default)
+
+def log_level_option(default: logging._Level = logging.INFO):
+    """Create a click option to select a log-level by name."""
+    return _log_level_option(default=default)
+
+
+def log_level_option_with_logger(
+    *logger: Optional[logging.Logger],
+    default: logging._Level = logging.INFO,
+):
+    """
+    Create a click option to select a log-level by name, and directly apply it to logger(s).
+    
+    :param logger:
+        The loggers. If none is given, use the default logger.
+    :param default:
+        The default log level. Will be converted to string.
+
+    :return:
+        A click option.
+    """
+    logger = logger or [logging.getLogger()]
+
+    def _log_level_callback(_ctx, _param, value):
+        """A click callback which sets the log-level of the loggers."""
+        for logger_ in logger:
+            logger_.setLevel(level=value)
+    
+    return _log_level_option(default=default, callback=_log_level_callback)
